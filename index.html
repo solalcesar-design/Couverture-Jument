@@ -18,6 +18,7 @@
 
     <div id="login" class="card">
         <h2>🔐 Accès Jalena</h2>
+        <p style="font-size: 12px; color: gray;">Le code sera mémorisé sur cet appareil.</p>
         <input type="password" id="pass" placeholder="Code secret">
         <button onclick="checkPass()">Entrer</button>
     </div>
@@ -33,21 +34,35 @@
 
     <div id="admin-panel" class="card">
         <h3>⚙️ Configuration IA</h3>
-        <textarea id="admin-input" rows="5" placeholder="Ex: On a une nouvelle 200g avec couvre-cou. Pour les tranches : 0-5°C = 400g..."></textarea>
-        <button onclick="updateIA()">Enregistrer sur le serveur</button>
-        <button onclick="location.reload()" style="background:#ccc;">Retour</button>
+        <textarea id="admin-input" rows="5" placeholder="Décris tes couvertures et tranches ici..."></textarea>
+        <button onclick="updateIA()">Enregistrer</button>
+        <button onclick="document.getElementById('admin-panel').style.display='none'; document.getElementById('app-content').style.display='block';" style="background:#ccc;">Retour</button>
     </div>
 
     <script>
         let temperature = 0;
         let tempHier = 0;
+        const SECRET_KEY = "jalena2026";
+
+        // Vérification automatique au chargement
+        window.onload = function() {
+            if (localStorage.getItem("jalena_auth") === SECRET_KEY) {
+                showApp();
+            }
+        };
 
         function checkPass() {
-            if(document.getElementById('pass').value === "jalena2026") {
-                document.getElementById('login').style.display = "none";
-                document.getElementById('app-content').style.display = "block";
-                initMeteo();
-            } else { alert("Code faux !"); }
+            const input = document.getElementById('pass').value;
+            if(input === SECRET_KEY) {
+                localStorage.setItem("jalena_auth", SECRET_KEY); // Sauvegarde en cache
+                showApp();
+            } else { alert("Code incorrect"); }
+        }
+
+        function showApp() {
+            document.getElementById('login').style.display = "none";
+            document.getElementById('app-content').style.display = "block";
+            initMeteo();
         }
 
         async function initMeteo() {
@@ -67,13 +82,14 @@
 
         async function getConseil() {
             const resDiv = document.getElementById('reponse-ia');
-            resDiv.innerText = "L'IA analyse la chute de température...";
+            resDiv.innerText = "Analyse de la température..."; // Texte corrigé
+            
             const r = await fetch(`/api/conseil?temp=${temperature}&tempHier=${tempHier}`);
             const d = await r.json();
             resDiv.innerText = d.message;
 
             if (d.isAlerte && Notification.permission === "granted") {
-                new Notification("⚠️ ALERTE FROID JALENA", { body: d.message });
+                new Notification("⚠️ ALERTE JALENA", { body: d.message });
             }
         }
 
@@ -88,7 +104,7 @@
                 method: 'POST',
                 body: JSON.stringify({ text: text })
             });
-            alert("L'IA a mis à jour l'inventaire et les tranches !");
+            alert("Sauvegardé !");
             location.reload();
         }
     </script>
