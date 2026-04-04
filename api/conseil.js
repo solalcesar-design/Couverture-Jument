@@ -1,44 +1,47 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { createClient } from "@redis/client";
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { createClient } = require("@redis/client");
 
-export default async function handler(req, res) {
-  // On utilise TON nom de clé exact : GEMINI_API_KEY_Jalena
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY_Jalena);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+module.exports = async (req, res) => {
+  // Récupération des clés configurées dans Vercel
+  const geminiKey = process.env.GEMINI_API_KEY_Jalena;
+  const redisUrl = process.env.REDIS_URL;
 
-  // Connexion à TON Redis avec la variable REDIS_URL
-  const client = createClient({ url: process.env.REDIS_URL });
-  client.on('error', (err) => console.log('Redis Client Error', err));
-  if (!client.isOpen) await client.connect();
+  // Sécurité : Vérification des clés avant de lancer
+  if (!geminiKey || !redisUrl) {
+    return res.status(200).json({ message: "⚠️ Configuration incomplète sur Vercel (Variables d'environnement)." });
+  }
 
+  const client = createClient({ url: redisUrl });
+  
   try {
-    // 1. Sauvegarder les règles (POST)
+    await client.connect();
+
+    // Gestion de l'enregistrement des règles
     if (req.method === 'POST') {
       const { text } = JSON.parse(req.body);
       await client.set("config_jalena", text);
       return res.status(200).json({ success: true });
     }
 
-    // 2. Donner un conseil (GET)
-    const configHorses = await client.get("config_jalena");
+    // Gestion de la demande de conseil
+    const config = await client.get("config_jalena");
     const { temp, vent, pluie } = req.query;
 
-    if (!configHorses) {
-      return res.status(200).json({ message: "⚠️ Clique sur 'Configuration' en bas pour me dire quelles couvertures Jalena possède !" });
+    if (!config) {
+      return res.status(200).json({ message: "⚙️ Enregistre tes règles dans 'Configuration' pour commencer." });
     }
 
-    const prompt = `
-      Tu es l'assistant de Jalena.
-      METEO : ${temp}°C, Vent ${vent}km/h, Pluie ${pluie}mm.
-      RÈGLES DE L'ÉCURIE : ${configHorses}
-      CONSEIL : Dis quelle couverture mettre. Si pluie > 1mm ou vent > 30km/h, adapte selon les règles. Sois bref.`;
+    const genAI = new GoogleGenerativeAI(geminiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+    const prompt = `Météo : ${temp}°C, Vent ${vent}km/h, Pluie ${pluie}mm. Règles : ${config}. Quel conseil pour Jalena ?`;
     const result = await model.generateContent(prompt);
-    res.status(200).json({ message: result.response.text(), config: { inventaire: configHorses } });
+
+    return res.status(200).json({ message: result.response.text() });
 
   } catch (error) {
-    res.status(500).json({ message: "Erreur de connexion. Vérifie tes clés sur Vercel." });
+    return res.status(200).json({ message: "Désolé, j'ai un petit problème technique. Réessaie dans une minute !" });
   } finally {
-    await client.disconnect();
+    if (client.isOpen) await client.disconnect();
   }
-}
+};
