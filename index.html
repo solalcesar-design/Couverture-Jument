@@ -3,120 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jalena App</title>
+    <title>Jalena Pro</title>
     <style>
-        :root { --brun: #8b5a2b; --beige: #fdf6e3; --vert: #2d5a27; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--beige); margin: 0; padding: 20px; color: #4a3728; }
-        .card { background: white; padding: 25px; border-radius: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 400px; margin: auto; text-align: center; }
-        h1 { color: var(--brun); margin-bottom: 5px; }
-        .temp-box { font-size: 50px; font-weight: bold; margin: 15px 0; }
-        button { background: var(--brun); color: white; border: none; padding: 15px; border-radius: 15px; width: 100%; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        .result { margin-top: 20px; padding: 15px; border-radius: 15px; background: #f0f9eb; border: 1px solid #c2e0b8; display: none; text-align: left; }
-        
-        /* Styles Admin */
-        #admin-panel { display: none; margin-top: 30px; border-top: 2px dashed #ddd; padding-top: 20px; text-align: left; }
-        input, textarea { width: 100%; padding: 10px; margin: 10px 0; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box; }
-        .admin-btn { background: #5d4037; font-size: 12px; padding: 8px; width: auto; margin-top: 40px; opacity: 0.5; }
-        .force-msg { color: #d32f2f; font-weight: bold; font-style: italic; }
+        :root { --gold: #d4af37; --dark: #1a1a1a; }
+        body { font-family: sans-serif; background: #f4f1ea; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; text-align: center; }
+        .card { background: white; padding: 30px; border-radius: 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); width: 90%; max-width: 350px; }
+        #app-content, #admin-panel { display: none; }
+        input, textarea { width: 100%; padding: 12px; margin: 10px 0; border-radius: 10px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { background: var(--dark); color: white; border: none; padding: 15px; width: 100%; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .temp { font-size: 50px; color: var(--gold); font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="card" id="main-view">
-        <h1>🐴 Jalena</h1>
-        <div id="status-meteo">Chargement météo...</div>
-        <div class="temp-box" id="temp-val">--°C</div>
-        
-        <button onclick="voirConseil()">Quel conseil ce soir ?</button>
-        
-        <div class="result" id="box-resultat">
-            <div id="texte-IA"></div>
-        </div>
-
-        <button class="admin-btn" onclick="checkAdmin()">⚙️ Zone Admin</button>
+    <div id="login" class="card">
+        <h2>🔐 Accès Jalena</h2>
+        <input type="password" id="pass" placeholder="Code secret">
+        <button onclick="checkPass()">Entrer</button>
     </div>
 
-    <div class="card" id="admin-panel">
-        <button onclick="fermerAdmin()" style="background:#ccc; width:auto; padding:5px 10px;">X Fermer</button>
-        <h3>Configuration Admin</h3>
-        
-        <label><b>📦 Liste des couvertures dispo :</b></label>
-        <textarea id="list-couv" placeholder="Ex: Imper 0g, Polaire, 200g bleu..."></textarea>
-        
-        <label><b>⚠️ Message forcé (Papa) :</b></label>
-        <textarea id="force-msg" placeholder="Si rempli, l'IA sera ignorée..."></textarea>
-        <p style="font-size:10px">Laisse vide pour laisser l'IA décider normalement.</p>
+    <div id="app-content" class="card">
+        <h1>🐴 Jalena</h1>
+        <div class="temp" id="temp-val">--°C</div>
+        <button onclick="activerNotifications()" style="background:#4a90e2; font-size: 12px;">🔔 Activer Alertes Prioritaires</button>
+        <button onclick="getConseil()" style="margin-top:20px;">Quel conseil ce soir ?</button>
+        <div id="reponse-ia" style="margin-top:20px; font-style: italic; color: #444;"></div>
+        <button onclick="goAdmin()" style="margin-top:40px; background:none; color:gray; font-size:11px;">⚙️ Zone Admin</button>
+    </div>
 
-        <button onclick="saveAdmin()" style="background:var(--vert)">Enregistrer les modifs</button>
+    <div id="admin-panel" class="card">
+        <h3>⚙️ Configuration IA</h3>
+        <textarea id="admin-input" rows="5" placeholder="Ex: On a une nouvelle 200g avec couvre-cou. Pour les tranches : 0-5°C = 400g..."></textarea>
+        <button onclick="updateIA()">Enregistrer sur le serveur</button>
+        <button onclick="location.reload()" style="background:#ccc;">Retour</button>
     </div>
 
     <script>
         let temperature = 0;
+        let tempHier = 0;
 
-        // 1. Récupérer la météo
-        async function fetchMeteo() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(async (p) => {
-                    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.coords.latitude}&longitude=${p.coords.longitude}&current_weather=true`);
-                    const d = await r.json();
-                    temperature = Math.round(d.current_weather.temperature);
-                    document.getElementById('temp-val').innerText = temperature + "°C";
-                    document.getElementById('status-meteo').innerText = "Météo en direct :";
-                });
-            }
+        function checkPass() {
+            if(document.getElementById('pass').value === "jalena2026") {
+                document.getElementById('login').style.display = "none";
+                document.getElementById('app-content').style.display = "block";
+                initMeteo();
+            } else { alert("Code faux !"); }
         }
-        fetchMeteo();
 
-        // 2. Logique du bouton principal
-        async function voirConseil() {
-            const resBox = document.getElementById('box-resultat');
-            const txtIA = document.getElementById('texte-IA');
-            const msgForce = localStorage.getItem('jalena_force');
+        async function initMeteo() {
+            navigator.geolocation.getCurrentPosition(async (p) => {
+                const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.coords.latitude}&longitude=${p.coords.longitude}&current_weather=true&past_days=1`);
+                const d = await r.json();
+                temperature = Math.round(d.current_weather.temperature);
+                tempHier = Math.round(d.hourly.temperature_2m[0]);
+                document.getElementById('temp-val').innerText = temperature + "°C";
+            });
+        }
 
-            resBox.style.display = "block";
+        async function activerNotifications() {
+            const p = await Notification.requestPermission();
+            if (p === "granted") alert("Notifications activées !");
+        }
 
-            // SI PAPA A REMPLI UN MESSAGE
-            if (msgForce && msgForce.trim() !== "") {
-                txtIA.innerHTML = `<span class="force-msg">Note de Papa :</span><br>${msgForce}`;
-                return;
-            }
+        async function getConseil() {
+            const resDiv = document.getElementById('reponse-ia');
+            resDiv.innerText = "L'IA analyse la chute de température...";
+            const r = await fetch(`/api/conseil?temp=${temperature}&tempHier=${tempHier}`);
+            const d = await r.json();
+            resDiv.innerText = d.message;
 
-            // SINON ON DEMANDE À L'IA
-            txtIA.innerText = "Analyse de l'IA en cours...";
-            try {
-                const couv = localStorage.getItem('jalena_couvertures') || "toutes";
-                const response = await fetch(`/api/conseil?temp=${temperature}&couv=${couv}`);
-                const data = await response.json();
-                txtIA.innerText = data.message;
-            } catch (e) {
-                txtIA.innerText = "Erreur : Connecte-toi sur Vercel pour voir l'IA !";
+            if (d.isAlerte && Notification.permission === "granted") {
+                new Notification("⚠️ ALERTE FROID JALENA", { body: d.message });
             }
         }
 
-        // 3. Fonctions Admin
-        function checkAdmin() {
-            const mdp = prompt("Mot de passe secret :");
-            if(mdp === "jalena2026") { // TON MOT DE PASSE
-                document.getElementById('main-view').style.display = "none";
-                document.getElementById('admin-panel').style.display = "block";
-                // Charger les valeurs actuelles
-                document.getElementById('list-couv').value = localStorage.getItem('jalena_couvertures') || "";
-                document.getElementById('force-msg').value = localStorage.getItem('jalena_force') || "";
-            } else {
-                alert("Accès refusé !");
-            }
+        function goAdmin() {
+            document.getElementById('app-content').style.display = "none";
+            document.getElementById('admin-panel').style.display = "block";
         }
 
-        function saveAdmin() {
-            localStorage.setItem('jalena_couvertures', document.getElementById('list-couv').value);
-            localStorage.setItem('jalena_force', document.getElementById('force-msg').value);
-            alert("C'est enregistré !");
-            fermerAdmin();
-        }
-
-        function fermerAdmin() {
-            document.getElementById('admin-panel').style.display = "none";
-            document.getElementById('main-view').style.display = "block";
+        async function updateIA() {
+            const text = document.getElementById('admin-input').value;
+            await fetch(`/api/conseil`, {
+                method: 'POST',
+                body: JSON.stringify({ text: text })
+            });
+            alert("L'IA a mis à jour l'inventaire et les tranches !");
+            location.reload();
         }
     </script>
 </body>
