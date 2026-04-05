@@ -5,18 +5,20 @@ export default async function handler(req, res) {
   try {
     const key = process.env.GEMINI_API_KEY_Jalena;
 
-    // On force la connexion avec TES variables exactes
+    // On crée le client manuellement pour éviter le bug auto de Vercel
     const kv = createClient({
-      url: process.env.KV_URL || process.env.REDIS_URL,
-      token: process.env.KV_REST_API_TOKEN || process.env.REDIS_REST_API_TOKEN,
+      url: process.env.KV_REST_API_URL || process.env.KV_URL || process.env.REDIS_URL,
+      token: process.env.KV_REST_API_TOKEN,
     });
 
+    // 1. Sauvegarder (POST)
     if (req.method === 'POST') {
-      const { text } = JSON.parse(req.body);
+      const { text } = req.body;
       await kv.set("config_jalena", text);
       return res.status(200).json({ success: true });
     }
 
+    // 2. Récupérer le conseil (GET)
     const config = await kv.get("config_jalena");
     const { temp, vent, pluie } = req.query;
 
