@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     }
 
     const genAI = new GoogleGenerativeAI(key);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-002" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
 
     const prompt = `Tu es un assistant pour un cheval. Voici la météo : Température: ${temp}°C, Vent: ${vent}km/h, Pluie: ${pluie}mm. Règles de couverture : ${config}. Quelle couverture ce soir ? Réponds brièvement en une ou deux phrases.`;
 
