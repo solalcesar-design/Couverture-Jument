@@ -4,39 +4,34 @@ import { kv } from "@vercel/kv";
 export default async function handler(req, res) {
   try {
     const key = process.env.GEMINI_API_KEY_Jalena;
-    
-    // 1. GESTION DE L'ENREGISTREMENT (Quand tu cliques sur Enregistrer)
+
+    // 1. SAUVEGARDE
     if (req.method === 'POST') {
       const { text } = JSON.parse(req.body);
+      // On force l'écriture dans "config_jalena"
       await kv.set("config_jalena", text);
       return res.status(200).json({ success: true });
     }
 
-    // 2. GESTION DU CONSEIL (Quand tu cliques sur le bouton marron)
+    // 2. LECTURE
+    // On force la lecture de "config_jalena"
     const config = await kv.get("config_jalena");
-    const { temp, vent, pluie } = req.query;
-
-    // Si on n'a pas encore enregistré de règles dans la config
-    if (!config) {
-      return res.status(200).json({ message: "⚙️ Clique sur 'Configuration Écurie' en bas pour me dire quelles couvertures Jalena possède !" });
+    
+    // DEBUG : Si vraiment vide, on renvoie un message précis
+    if (!config || config === "") {
+      return res.status(200).json({ message: "La base de données est vide. Retourne dans Configuration et clique bien sur Enregistrer." });
     }
 
+    const { temp, vent, pluie } = req.query;
     const genAI = new GoogleGenerativeAI(key);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const prompt = `
-      Tu es l'assistant de Jalena. 
-      Météo : ${temp}°C, Vent ${vent}km/h, Pluie ${pluie}mm. 
-      Règles de la propriétaire : ${config}. 
-      Dis-moi précisément quelle couverture mettre. Sois bref et amical.`;
-
+    const prompt = `Météo : ${temp}°C, vent ${vent}km/h. Règles : ${config}. Quel conseil ?`;
     const result = await model.generateContent(prompt);
-    const response = await result.response;
     
-    return res.status(200).json({ message: response.text() });
+    return res.status(200).json({ message: result.response.text() });
 
   } catch (error) {
-    // Si ça bug, ce message s'affichera
-    return res.status(200).json({ message: "Note tes couvertures dans la zone Configuration pour activer l'IA !" });
+    return res.status(200).json({ message: "Erreur technique : " + error.message });
   }
 }
