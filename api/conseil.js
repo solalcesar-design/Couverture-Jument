@@ -7,6 +7,14 @@ export default async function handler(req, res) {
   try {
     const key = process.env.GEMINI_API_KEY_Jalena;
 
+    // ── Lister les modèles disponibles (debug) ──
+    if (req.query.mode === 'models') {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+      const d = await r.json();
+      return res.status(200).json(d);
+    }
+
+    // ── POST : enregistrer les règles ──
     if (req.method === 'POST') {
       const { text: configText } = req.body;
       if (!configText) return res.status(400).json({ error: "Contenu vide" });
@@ -14,11 +22,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
+    // ── GET mode=config : règles brutes pour l'admin ──
     if (req.query.mode === 'config') {
       const config = await kv.get("config_jalena");
       return res.status(200).json({ config: config || "" });
     }
 
+    // ── GET normal : conseil IA ──
     const config = await kv.get("config_jalena");
     const { temp, vent, pluie } = req.query;
 
@@ -30,6 +40,7 @@ export default async function handler(req, res) {
 
     const genAI = new GoogleGenerativeAI(key);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-002" });
+
     const prompt = `Tu es un assistant pour un cheval. Voici la météo : Température: ${temp}°C, Vent: ${vent}km/h, Pluie: ${pluie}mm. Règles de couverture : ${config}. Quelle couverture ce soir ? Réponds brièvement en une ou deux phrases.`;
 
     const result = await model.generateContent(prompt);
