@@ -4,15 +4,19 @@ import { kv } from "@vercel/kv";
 export default async function handler(req, res) {
   try {
     const key = process.env.GEMINI_API_KEY_Jalena;
-    
-    // Test POST pour enregistrer
+
     if (req.method === 'POST') {
-      const { text } = req.body;
-      await kv.set("config_jalena", text);
+      const { text: configText } = req.body; // ✅ renommé
+      await kv.set("config_jalena", configText);
       return res.status(200).json({ success: true });
     }
 
-    // Lecture des règles
+    // GET pour récupérer les règles brutes (pour admin)
+    if (req.query.mode === 'config') {
+      const config = await kv.get("config_jalena");
+      return res.status(200).json({ config: config || "" });
+    }
+
     const config = await kv.get("config_jalena");
     const { temp, vent, pluie } = req.query;
 
@@ -20,19 +24,15 @@ export default async function handler(req, res) {
       return res.status(200).json({ message: "Veuillez enregistrer vos couvertures dans Configuration." });
     }
 
-    // Appel IA avec diagnostic
     const genAI = new GoogleGenerativeAI(key);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const prompt = `Température: ${temp}°C, Vent: ${vent}km/h, Pluie: ${pluie}mm. Voici mes règles: ${config}. Quelle couverture mettre ? Réponds très brièvement.`;
 
-    const prompt = `Température: ${temp}°C, Vent: ${vent}km/h. Voici mes règles: ${config}. Quelle couverture mettre ? Réponds très brièvement.`;
-    
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    
-    return res.status(200).json({ message: text });
+    const iaText = result.response.text(); // ✅ renommé
 
+    return res.status(200).json({ message: iaText });
   } catch (error) {
-    // Ce message nous dira précisément ce qui ne va pas avec Gemini
     return res.status(200).json({ message: "Erreur IA : " + error.message });
   }
 }
