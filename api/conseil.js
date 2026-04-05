@@ -1,37 +1,37 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { kv } from "@vercel/kv";
+import { createClient } from "@vercel/kv";
 
 export default async function handler(req, res) {
   try {
     const key = process.env.GEMINI_API_KEY_Jalena;
 
-    // 1. SAUVEGARDE
+    // On force la connexion avec TES variables exactes
+    const kv = createClient({
+      url: process.env.KV_URL || process.env.REDIS_URL,
+      token: process.env.KV_REST_API_TOKEN || process.env.REDIS_REST_API_TOKEN,
+    });
+
     if (req.method === 'POST') {
       const { text } = JSON.parse(req.body);
-      // On force l'écriture dans "config_jalena"
       await kv.set("config_jalena", text);
       return res.status(200).json({ success: true });
     }
 
-    // 2. LECTURE
-    // On force la lecture de "config_jalena"
     const config = await kv.get("config_jalena");
-    
-    // DEBUG : Si vraiment vide, on renvoie un message précis
-    if (!config || config === "") {
-      return res.status(200).json({ message: "La base de données est vide. Retourne dans Configuration et clique bien sur Enregistrer." });
+    const { temp, vent, pluie } = req.query;
+
+    if (!config) {
+      return res.status(200).json({ message: "⚙️ Va dans 'Configuration' pour enregistrer tes couvertures !" });
     }
 
-    const { temp, vent, pluie } = req.query;
     const genAI = new GoogleGenerativeAI(key);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    const prompt = `Météo : ${temp}°C, vent ${vent}km/h. Règles : ${config}. Quel conseil ?`;
-    const result = await model.generateContent(prompt);
+    const prompt = `Jalena : ${temp}°C, vent ${vent}km/h, pluie ${pluie}mm. Règles : ${config}. Quel conseil ?`;
     
+    const result = await model.generateContent(prompt);
     return res.status(200).json({ message: result.response.text() });
 
   } catch (error) {
-    return res.status(200).json({ message: "Erreur technique : " + error.message });
+    return res.status(200).json({ message: "Erreur de connexion : " + error.message });
   }
 }
